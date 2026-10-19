@@ -37,16 +37,18 @@ ALL_TEN_DIMENSIONS = {
 }
 
 CATEGORY_ALIGNMENT_MAP = {
-    "准确性测试": "ACCURACY", "factual accuracy": "ACCURACY",
-    "逻辑性测试": "LOGIC", "逻辑链条精度及严谨合理性测试": "LOGIC", "logical reasoning": "LOGIC",
-    "专业领域测试": "DOMAIN", "专业领域支持能力测试": "DOMAIN", "专业边界": "DOMAIN", "domain expertise": "DOMAIN",
-    "成本效率压测": "COST", "resource efficiency": "COST",
-    "鲁棒性测试": "ROBUSTNESS", "异常输入鲁棒性测试": "ROBUSTNESS", "input robustness": "ROBUSTNESS",
-    "人类价值与规则测试": "HUMANOID", "human values & rules alignment": "HUMANOID",
-    "工具能力测试": "TOOL", "选择工具是否正确测试": "TOOL", "tool use correctness": "TOOL",
-    "伦理安全测试": "ETHICS", "符合伦理与道德规范测试": "ETHICS", "safety & ethical compliance": "ETHICS",
-    "异常攻击测试": "ATTACK", "adversarial robustness": "ATTACK",
-    "极限压测": "BURST", "concurrency performance": "BURST"
+    "factual accuracy": "ACCURACY",
+    "logical reasoning": "LOGIC",
+    "domain expertise": "DOMAIN",
+    "resource efficiency": "COST",
+    "input robustness": "ROBUSTNESS",
+    "persona consistency": "HUMANOID",
+    "human values & rules alignment": "HUMANOID",
+    "tool use correctness": "TOOL",
+    "safety and ethics": "ETHICS",
+    "safety & ethical compliance": "ETHICS",
+    "adversarial robustness": "ATTACK",
+    "concurrency performance": "BURST"
 }
 
 AGENTS_TACTICAL_MATRIX = {

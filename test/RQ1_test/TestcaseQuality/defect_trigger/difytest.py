@@ -10,11 +10,11 @@ from typing import Dict, List, Any, Optional
 DIFY_BASE_URL: str = "https://api.dify.ai/v1"
 
 DIFY_AGENT_API_KEYS: Dict[str, str] = {
-    "Agent_1_Medical":         "app-6PLoF29m0X9KKHxku0YNi9qY",
-    "Agent_2_Financial":       "app-vLXePUcGHbpMzzFDPF9mSCoN",
-    "Agent_3_Ecommerce":       "app-gtr4xdRTVY3Diou3gR61g7w5",
-    "Agent_4_Psychological":   "app-Cf6deH9TpAakObim2BHvqC4o", 
-    "Agent_5_Event_Scheduler": "app-KlVeLdGxG48iPCoX74Sw6E16", 
+    "Agent_1_Medical": os.getenv("DIFY_AGENT_1_MEDICAL_API_KEY", ""),
+    "Agent_2_Financial": os.getenv("DIFY_AGENT_2_FINANCIAL_API_KEY", ""),
+    "Agent_3_Ecommerce": os.getenv("DIFY_AGENT_3_ECOMMERCE_API_KEY", ""),
+    "Agent_4_Psychological": os.getenv("DIFY_AGENT_4_PSYCHOLOGICAL_API_KEY", ""),
+    "Agent_5_Event_Scheduler": os.getenv("DIFY_AGENT_5_EVENT_SCHEDULER_API_KEY", ""),
 }
 
 DIFY_AGENT_APP_TYPES: Dict[str, str] = {

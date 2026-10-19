@@ -374,7 +374,7 @@
                 "expected_pass": true
             },
             {
-                "user_input": "Keep on going 的中文翻译是“坚持不懈”，适合用作座右铭。",
+                "user_input": "The Chinese translation of 'Keep on going' is '坚持不懈', making it suitable as a personal motto.",
                 "mock_resp": "Both 'perseverance' and 'forge ahead' are suitable translations for this sentence. Which one do you prefer?",
                 "trace": [
                     {

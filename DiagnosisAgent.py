@@ -10,7 +10,6 @@ import json
 from typing import List, Dict, Any, Tuple, ClassVar, Optional
 from coze_chat import CozeAgent, CozeQuotaError
 import selfevolve_rubric
-selfevolve_rubric_text = selfevolve_rubric.get_selfevolve_rubric_text()
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
@@ -23,7 +22,7 @@ SHADOW_JUDGE_PROMPT_TMPL = """
 You are now the "Shadow Chief Auditor." Your mission is to audit the primary judge's diagnose conclusion based on the Audit selfevolve rubric to determine if there has been any unmerited leniency or metric inflation.
 
 ### 1. Audit selfevolve rubric Requirements
-{selfevolve rubric_text}
+{selfevolve_rubric_text}
 
 ### 2. Raw Interaction Data
 - [User Prompt]: {question}
@@ -63,13 +62,14 @@ Output the report in Markdown format structured exactly as follows:
 ## 1. Executive Summary & Core Metrics
 - Aggregate the execution data and provide a performance rating (Excellent/Good/Fair/At-Risk).
 
-## 2. Shadow Audit Compliance Analysis (Render only if shadow data is non-empty and non-standard)
-- Contrast [Primary Scores] against [Shadow Scores].
-- **Score Deviation Analysis**: If the variance between the two scores exceeds 15%, you must include a section titled "Score Confidence Alert" to analyze whether user-induced shifts in the selfevolve rubric caused unmerited judge leniency.
+## 2. Shadow Audit Compliance Analysis (Render this section only if "Shadow Audit Summary" is non-empty)
+- Contrast the [Primary Judge Scores] against the [Shadow Auditor Scores].
+- **Score Deviation Analysis**: If the variance between the two scores exceeds 15%, perform a deep-dive review under the title "Score Confidence Alert."
 
 ## 3. Execution Details & Case Deconstruction
-- You must include a Mermaid pie chart visualizing the execution success rate.
-- **Typical Case Analysis**: Contrast the specific point-of-view divergences between the primary judge and the shadow auditor on critical test cases.
+- **Success Rate Visualization**: You MUST render a standard Markdown table showing execution status. Use literal plain-text blocks like `[████░░░░░░]` to visually draw the progress bars within the table column. 
+- *CRITICAL*: Do NOT use any Mermaid code blocks, ````mermaid` syntax, or pie charts. Mermaid is strictly prohibited.
+- **Typical Case Analysis**: Isolate 1-2 representative test cases to perform a deep technical critique.
 
 ## 4. Actionable Remediation
 - **Generic recommendations are strictly prohibited**. You must formulate targeted optimization strategies mapped directly to the specific logical failures and domain-specific variances discovered during testing.
@@ -393,7 +393,7 @@ EVAL_PROMPTS = {
     You are the Shadow Chief Auditor. Your mission is to audit the primary judge's diagnose conclusions based on the Audit selfevolve rubric.
     
     ### 1. Audit selfevolve rubric Requirements
-    {selfevolve rubric_text}
+    {selfevolve_rubric_text}
     
     ### 2. Raw Interaction Data
     - [User Prompt]: {question}
@@ -426,6 +426,12 @@ EVAL_PROMPTS = {
     - Average Latency: {avg_latency:.1f}ms
     - Shadow Audit Summary: {shadow_audit_summary} 
     Note: If the "Shadow Audit Summary" is empty or denotes a standard mode, completely omit all discussions regarding "shadow judges," "deviation metrics," or "selfevolve rubric auditing."
+
+    ### Testing Plan
+    {plan_markdown}
+
+    ### Executed Cases and Evaluation Results
+    {qa_block}
 
     ### Report Requirements
     Output the report in Markdown format. The tone must remain highly professional, objective, and rigorous.
@@ -680,6 +686,12 @@ class DiagnosisAgent:
             lines.append(f"Input: {item.get('input')}")
             lines.append(f"Actual Output: {item.get('output')}")
             lines.append(f"Latency: {item.get('latency_ms', 0):.1f}ms")
+            if "main_audit" in item:
+                lines.append(f"Primary Evaluation: {json.dumps(item['main_audit'], ensure_ascii=False)}")
+            if "judge_result" in item:
+                lines.append(f"Consistency Evaluation: {json.dumps(item['judge_result'], ensure_ascii=False)}")
+            if "shadow_audit" in item:
+                lines.append(f"Shadow Evaluation: {json.dumps(item['shadow_audit'], ensure_ascii=False)}")
             
             if item.get("tool_audit"):
                 audit = item["tool_audit"]
@@ -705,7 +717,7 @@ class DiagnosisAgent:
         results = []
         for case in cases:
             ans, lat, raw = await _coze_ask_async(bot_id, case.get("input"), original=True)
-            res_item = {"id": case.get("id"), "category": category, "input": case.get("input"), "output": ans, "latency_ms": lat, "score_key": score_key} # 记录 key
+            res_item = {"id": case.get("id"), "category": category, "input": case.get("input"), "output": ans, "latency_ms": lat, "score_key": score_key}
             if raw and isinstance(raw, dict) and raw.get("error"):
                 error_message = raw.get("message") or "Unspecified remote execution anomaly."
                 error_payload = {
@@ -736,7 +748,7 @@ class DiagnosisAgent:
                     
                     shadow_p = _render_prompt(
                         "SHADOW_JUDGE", 
-                        selfevolve_rubric_text=selfevolve_rubric_text,
+                        selfevolve_rubric_text=selfevolve_rubric.get_selfevolve_rubric_text(),
                         plan_markdown=plan_markdown,
                         question=case.get("input"), 
                         answer=ans, 
@@ -821,7 +833,6 @@ class DiagnosisAgent:
             ttft = raw.get("ttft_ms")
             usage = raw.get("usage", {}) if isinstance(raw, dict) else {}
             out_tok = usage.get("completion_tokens", 0)
-            if ttft is None: ttft = lat * 0.5
             return {"latency": lat, "ttft": ttft, "output_tokens": out_tok, "error": bool(raw.get("error") if isinstance(raw, dict) else False)}
 
         for idx, case in enumerate(cases, 1):
@@ -844,11 +855,13 @@ class DiagnosisAgent:
             avg = sum(lats)/len(lats) if lats else 0
             p99 = lats[int(len(lats)*0.99)] if lats else 0
             p95 = lats[int(len(lats)*0.95)] if lats else 0
-            avg_ttft = sum([r["ttft"] for r in valid])/len(valid) if valid else 0
+            ttft_values = [r["ttft"] for r in valid if r["ttft"] is not None]
+            avg_ttft = sum(ttft_values) / len(ttft_values) if ttft_values else None
+            ttft_display = f"{avg_ttft:.1f}ms" if avg_ttft is not None else "N/A"
             qps = len(batch_results)/dur if dur > 0 else 0
             tps = sum([r["output_tokens"] for r in valid])/dur if dur > 0 else 0
             
-            stats = f"- **QPS**: {qps:.2f} | **TPS**: {tps:.2f}\n- **Latency**: Avg={avg:.1f}ms, P95={p95:.1f}ms, **P99={p99:.1f}ms** (长尾)\n- **TTFT (首字)**: {avg_ttft:.1f}ms\n- **Error Rate**: {(len(batch_results)-len(valid))/count*100:.1f}%"
+            stats = f"- **QPS**: {qps:.2f} | **TPS**: {tps:.2f}\n- **Latency**: Avg={avg:.1f}ms, P95={p95:.1f}ms, **P99={p99:.1f}ms** (tail latency)\n- **TTFT (time to first token)**: {ttft_display}\n- **Error Rate**: {(len(batch_results)-len(valid))/count*100:.1f}%"
             case_stats.append(f"### Load Test Case {idx}\nPrompt: {inp[:30]}...\n{stats}")
             summaries.append({"id": case.get("id"), "category": "BURST", "metrics": {"qps": qps, "p99": p99}})
 

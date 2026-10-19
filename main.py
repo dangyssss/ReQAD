@@ -9,6 +9,7 @@ import logging
 import asyncio
 import hashlib
 import textwrap
+import re
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
@@ -59,8 +60,14 @@ def update_hash_cache(current_hash):
 async def run_evaluation_flow(is_modified: bool):
     """Core workflow: Planning -> Execution -> Reporting"""
     print("\n[Step 1/3] Please enter the functional profile/positioning of the target agent:")
-
     agent_desc = input("> ").strip() or "General Assistant"
+    
+    clean_desc = re.sub(r'[\/:*?"<>|]', '', agent_desc).strip().replace(' ', '_')
+    clean_desc = clean_desc[:30]
+    
+    now_ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_dir = os.path.join(FIXED_OUTPUT_DIR, f"{now_ts}-{clean_desc}")
+
     user_test_request = ""
     per_num = 3
     target_map = None
@@ -99,6 +106,19 @@ async def run_evaluation_flow(is_modified: bool):
         print("="*50)
         print(f"System has successfully provisioned {len(raw_cases)} test cases.")
         
+        os.makedirs(run_dir, exist_ok=True)
+        
+        planner_report_path = os.path.join(run_dir, "planner_plan.md")
+        with open(planner_report_path, "w", encoding="utf-8") as f_plan:
+            f_plan.write(plan_md)
+            
+        cases_json_path = os.path.join(run_dir, "test_cases.json")
+        with open(cases_json_path, "w", encoding="utf-8") as f_json:
+            json.dump(raw_cases, f_json, ensure_ascii=False, indent=4)
+            
+        print(f"Test plan and cases successfully persisted to directory:\n{run_dir}")
+        print("="*50)
+        
         confirm = input("\nDo you want to proceed with the evaluation using the above plan? (y/N): ").strip().lower()
         if confirm not in ('y', 'yes'):
             print("Execution canceled. Returning to main menu.")
@@ -126,14 +146,19 @@ async def run_evaluation_flow(is_modified: bool):
         planner_debug=debug_payload,
         is_rubric_modified=is_modified
     )
-
-    now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    os.makedirs(FIXED_OUTPUT_DIR, exist_ok=True)
-    report_path = os.path.join(FIXED_OUTPUT_DIR, f"Report_{now}.md")
-    with open(report_path, "w", encoding="utf-8") as f:
-        f.write(report)
+    report_clean = report.strip()
+    if report_clean.startswith("```markdown"):
+        report_clean = report_clean[11:].strip()
+    elif report_clean.startswith("```"):
+        report_clean = report_clean[3:].strip()
+        
+    if report_clean.endswith("```"):
+        report_clean = report_clean[:-3].strip()
+    diagnosis_report_path = os.path.join(run_dir, "diagnosis_report.md")
+    with open(diagnosis_report_path, "w", encoding="utf-8") as f_rep:
+        f_rep.write(report)
     
-    print(f"\nEvaluation completed. The report has been saved to:\n{report_path}")
+    print(f"\nEvaluation completed successfully. All execution artifacts saved under:\n{run_dir}")
 
 async def main():
     mgr = SelfevolveRubricManager()
